@@ -1,5 +1,7 @@
 import { MESSAGE_TYPE } from 'shared/constants/messages';
-import { applyPageFilters } from './helpers';
+import { applyPageFilters, sortComparator } from './helpers';
+import filterQueryGenerator from 'dashboard/helper/filterQueryGenerator';
+import camelcaseKeys from 'camelcase-keys';
 
 export const getSelectedChatConversation = ({
   allConversations,
@@ -7,18 +9,20 @@ export const getSelectedChatConversation = ({
 }) =>
   allConversations.filter(conversation => conversation.id === selectedChatId);
 
-// getters
 const getters = {
-  getAllConversations: ({ allConversations }) =>
-    allConversations.sort(
-      (a, b) => b.messages.last()?.created_at - a.messages.last()?.created_at
-    ),
+  getAllConversations: ({ allConversations, chatSortFilter: sortKey }) => {
+    return allConversations.sort((a, b) => sortComparator(a, b, sortKey));
+  },
   getSelectedChat: ({ selectedChatId, allConversations }) => {
     const selectedChat = allConversations.find(
       conversation => conversation.id === selectedChatId
     );
     return selectedChat || {};
   },
+  getSelectedChatAttachments: ({ selectedChatId, attachments }) => {
+    return attachments[selectedChatId] || [];
+  },
+  getChatListFilters: ({ conversationFilters }) => conversationFilters,
   getLastEmailInSelectedChat: (stage, _getters) => {
     const selectedChat = _getters.getSelectedChat;
     const { messages = [] } = selectedChat;
@@ -51,8 +55,16 @@ const getters = {
       return isChatMine;
     });
   },
+  getAppliedConversationFiltersV2: _state => {
+    // TODO: Replace existing one with V2 after migrating the filters to use camelcase
+    return _state.appliedFilters.map(camelcaseKeys);
+  },
   getAppliedConversationFilters: _state => {
     return _state.appliedFilters;
+  },
+  getAppliedConversationFiltersQuery: _state => {
+    const hasAppliedFilters = _state.appliedFilters.length !== 0;
+    return hasAppliedFilters ? filterQueryGenerator(_state.appliedFilters) : [];
   },
   getUnAssignedChats: _state => activeFilters => {
     return _state.allConversations.filter(conversation => {
@@ -85,6 +97,7 @@ const getters = {
     ).length;
   },
   getChatStatusFilter: ({ chatStatusFilter }) => chatStatusFilter,
+  getChatSortFilter: ({ chatSortFilter }) => chatSortFilter,
   getSelectedInbox: ({ currentInbox }) => currentInbox,
   getConversationById: _state => conversationId => {
     return _state.allConversations.find(
@@ -96,6 +109,10 @@ const getters = {
   },
   getConversationLastSeen: _state => {
     return _state.conversationLastSeen;
+  },
+
+  getContextMenuChatId: _state => {
+    return _state.contextMenuChatId;
   },
 };
 
